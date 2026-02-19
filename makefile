@@ -25,7 +25,6 @@ floattest.prg: runtime.lib math.h float.h floattest.c
 #	cl65 $(CC65_FLAGS) -Osir floattest.c runtime.lib -o floattest.prg
 	cl65 $(CC65_FLAGS) floattest.c runtime.lib -o floattest.prg
 #	cc65 $(CC65_FLAGS) floattest.c -o floattest.s
-
 floattest: floattest.c math.h float.h
 	gcc -O2 -W -Wall -Wextra -o floattest -lm floattest.c
 
