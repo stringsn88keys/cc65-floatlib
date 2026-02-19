@@ -17,6 +17,27 @@ double my_floor_2(double num) {
 }
 #endif
 
+/* C128: VAL_1 ($8052) reads strings from bank 1 and cannot be called from bank 0.
+ * Provide a simple decimal-integer parser using the existing float operations.
+ * TODO: add decimal-point and exponent support if needed. */
+#if defined(__CC65__) && defined(__C128__)
+float __fastcall__ _strtof(char *s)
+{
+    int n = 0;
+    char neg = 0;
+
+    if (*s == '-') { neg = 1; s++; }
+    else if (*s == '+') { s++; }
+
+    while (*s >= '0' && *s <= '9') {
+        n = n * 10 + (*s - '0');
+        s++;
+    }
+    if (neg) return fneg(itof(n));
+    return itof(n);
+}
+#endif
+
 /* FIXME: this is really too simple */
 float ffloor(float x)
 {

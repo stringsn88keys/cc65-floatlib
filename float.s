@@ -26,20 +26,32 @@ __basicoff:
         rts
 .endif
 
+.if .defined(__C128__)
+__basicon:
+        ldx #$00        ; use X, not A — callers may pass arguments in A
+        stx $FF00       ; MMU Configuration Register: BASIC ROM + Kernal ROM visible
+        rts
+
+__basicoff:
+        ldx #$0E        ; MMU_CFG_CC65: Kernal ROM only, BASIC ROM area = RAM
+        stx $FF00       ; MMU Configuration Register
+        rts
+.endif
+
 .macro __enable_basic_if_needed
-  .if .defined(__C64__)
+  .if .defined(__C64__) .or .defined(__C128__)
         jsr __basicon
   .endif
 .endmacro
 
 .macro __disable_basic_if_needed
-  .if .defined(__C64__)
+  .if .defined(__C64__) .or .defined(__C128__)
         jsr __basicoff
   .endif
 .endmacro
 
 .macro __return_with_cleanup
-  .if .defined(__C64__)
+  .if .defined(__C64__) .or .defined(__C128__)
         jmp __basicoff
   .else
         rts
@@ -72,6 +84,9 @@ ___float_u8_to_fac:
         ;y: low
 __float_u8_to_fac:
         __enable_basic_if_needed
+.if .defined(__C128__)
+        lda #0          ; C128 GIVAYF takes Y=lo/A=hi; zero A for unsigned byte
+.endif
         jsr BASIC_u8_to_FAC
         __return_with_cleanup
         
@@ -123,13 +138,18 @@ __float_fac_to_str:
         jsr BASIC_FAC_to_string
         __return_with_cleanup
 
+; NOTE: C128 does NOT define ___float_str_to_fac / __strtof here.
+; VAL_1 ($8052) reads from bank 1 RAM and must not be called from bank 0.
+; _strtof for C128 is implemented in floatc.c instead.
+.if .not .defined(__C128__)
 ___float_str_to_fac:
 ;        jsr popax
 __float_str_to_fac:
-        sta $22
+        sta $22         ; C64/VIC-20 string_to_FAC expects pointer in $22/$23
         stx $23
         ldy #$00
-@l:     lda ($22),y
+@l:
+        lda ($22),y
         beq @s
         iny
         bne @l
@@ -137,6 +157,7 @@ __float_str_to_fac:
         __enable_basic_if_needed
         jsr BASIC_string_to_FAC
         __return_with_cleanup
+.endif
 
 ;---------------------------------------------------------------------------------------------
 
@@ -507,14 +528,17 @@ __float_strbuf_to_string:
         ldx ptr1+1
         rts
 
+; _strtof: C128 version lives in floatc.c (VAL_1 requires bank 1 strings)
+.if .not .defined(__C128__)
         .export __strtof
-        
-; convert a string to a float        
-; float __fastcall__ _strtof(char *d);        
-;-> unsigned long __fastcall__ _strtof(char *d);        
+
+; convert a string to a float
+; float __fastcall__ _strtof(char *d);
+;-> unsigned long __fastcall__ _strtof(char *d);
 __strtof:
         jsr ___float_str_to_fac
         jmp ___float_fac_to_float
+.endif
 
         .export __ctof
 
@@ -598,13 +622,7 @@ __fround:  __ffunc1 BASIC_FAC_Round
 ;---------------------------------------------------------------------------------------------
         
 __float_ret2:
-
-        ;jsr __basicoff
-.if .defined(__C64__)
-        ldx #$36
-        stx $01
-        cli
-.endif
+        __disable_basic_if_needed
         jmp ___float_fac_to_float    ; also pops pointer to float
 
 .macro __ffunc2a addr
@@ -638,14 +656,9 @@ __fand:   __ffunc2b BASIC_ARG_FAC_And
 __for:    __ffunc2b BASIC_ARG_FAC_Or
         
 __float_ret3:
-        ;jsr __basicoff
-.if .defined(__C64__)
-        ldx #$36
-        stx $01
-        cli
-.endif
+        __disable_basic_if_needed
         ldx #0
-        rts  
+        rts
         
         .bss
         
